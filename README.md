@@ -21,7 +21,8 @@ internet, actual save_state()/restore_state() — not simulated. Run any
 | 3 | Real `npm install` from inside the guest | ✅ go, but **only via a relay server** (`packages/network`) |
 | 4 | Browser reaches a port the guest listens on | ✅ solved — the plan's most-open risk (`packages/preview-bridge`) |
 | 5 | Fast warm restart via snapshots | ✅ verified — ~198x faster than cold boot (`packages/vm-runtime`) |
-| 6 | Real Vite end-to-end | ⚠️ **not actually confirmed yet** — the background run hit the tool's own 10-minute cap mid-scaffold; code is real, needs a rerun with proper long-running handling (see below) |
+| 6 | Real Vite end-to-end | ❌ **blocked** — Vite's dev server (via Rollup) doesn't start on this guest at all; real, confirmed 32-bit-only incompatibility, not a tooling gap (see below) |
+| — | Real Express end-to-end (not in original plan, added on request) | ✅ verified — full install→snapshot→preview pipeline, real HTTP response (`examples/express-example`) |
 
 ## Phase 3 finding: networking needs a relay server, just not for the reason expected
 
