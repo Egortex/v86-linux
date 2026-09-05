@@ -1,0 +1,12 @@
+{
+  "name": "@v86-linux/network",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "spike:phase3": "node spike-phase3-network.mjs"
+  },
+  "dependencies": {
+    "v86": "^0.5.458"
+  }
+}

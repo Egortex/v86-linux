@@ -2,6 +2,7 @@ node_modules/
 dist/
 .pnpm-store/
 *.log
+*.tsbuildinfo
 .DS_Store
 packages/vm-image/dist/*.img
 packages/vm-image/dist/*.bin

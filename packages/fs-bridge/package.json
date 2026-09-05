@@ -1,0 +1,17 @@
+{
+  "name": "@v86-linux/fs-bridge",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "src/host-to-guest.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "v86": "^0.5.458"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.4"
+  }
+}

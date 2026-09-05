@@ -21,6 +21,25 @@ importers:
         specifier: ^0.5.458
         version: 0.5.458
 
+  packages/fs-bridge:
+    dependencies:
+      v86:
+        specifier: ^0.5.458
+        version: 0.5.458
+    devDependencies:
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.4
+        version: 2.1.9
+
+  packages/network:
+    dependencies:
+      v86:
+        specifier: ^0.5.458
+        version: 0.5.458
+
   packages/vm-image:
     dependencies:
       v86:
