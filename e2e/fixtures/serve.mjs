@@ -19,17 +19,22 @@
 
 import { createServer } from "node:http";
 import { readFile, stat } from "node:fs/promises";
-import { extname, join, normalize, sep } from "node:path";
+import { extname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
-const repoRoot = join(__dirname, "..", "..");
+const e2eRoot = resolve(__dirname, "..");
+const repoRoot = resolve(e2eRoot, "..");
 
 const ROOTS = {
-    "": join(__dirname), // "/" and "/fixtures-relative" paths
-    v86: join(repoRoot, "node_modules", "v86", "build"),
-    bios: join(repoRoot, "examples", "minimal", ".assets"),
-    image: join(repoRoot, "packages", "vm-image", "dist"),
+    "": resolve(__dirname), // "/" and other unprefixed paths
+    // Resolved from e2e's OWN node_modules (e2e/package.json depends on
+    // "v86" directly for exactly this reason) rather than the repo root's
+    // node_modules — pnpm only links a package into node_modules/ for
+    // whichever workspace package actually declares it as a dependency.
+    v86: resolve(e2eRoot, "node_modules", "v86", "build"),
+    bios: resolve(repoRoot, "examples", "minimal", ".assets"),
+    image: resolve(repoRoot, "packages", "vm-image", "dist"),
 };
 
 const MIME = {
@@ -56,9 +61,11 @@ function resolveRequestPath(urlPath) {
         rest = parts.length === 0 ? ["harness.html"] : parts;
     }
 
-    const target = normalize(join(root, ...rest));
-    // Guard against path traversal escaping the chosen root.
-    if (!target.startsWith(normalize(root) + sep) && target !== normalize(root)) {
+    const target = resolve(root, ...rest);
+    // Guard against path traversal escaping the chosen root: relative() from
+    // root to target must not climb out via "..".
+    const rel = relative(root, target);
+    if (rel.startsWith("..") || rel.split(sep).includes("..")) {
         return null;
     }
     return target;

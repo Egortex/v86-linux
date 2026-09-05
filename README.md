@@ -21,7 +21,7 @@ internet, actual save_state()/restore_state() — not simulated. Run any
 | 3 | Real `npm install` from inside the guest | ✅ go, but **only via a relay server** (`packages/network`) |
 | 4 | Browser reaches a port the guest listens on | ✅ solved — the plan's most-open risk (`packages/preview-bridge`) |
 | 5 | Fast warm restart via snapshots | ✅ verified — ~198x faster than cold boot (`packages/vm-runtime`) |
-| 6 | Real Vite end-to-end | ⚠️ scaffold+install+dev-server proven; full browser HMR e2e not (see below) |
+| 6 | Real Vite end-to-end | ⚠️ **not actually confirmed yet** — the background run hit the tool's own 10-minute cap mid-scaffold; code is real, needs a rerun with proper long-running handling (see below) |
 
 ## Phase 3 finding: networking needs a relay server, just not for the reason expected
 
@@ -44,11 +44,19 @@ lease to match. Validated end-to-end. See `packages/preview-bridge/README.md`.
 
 ## Phase 6: what's proven vs what remains
 
-Proven (see `examples/vite-example/spike-phase6-vite.mjs`, run against the
-real `wsproxy` relay): `npm create vite@latest`, `npm install`, and
-`npm run dev` all execute completely unmodified inside the guest — this is
-the plan's central argument over a Node-lite/shim-based approach, and it
-holds up.
+**Correction:** the first attempt to run `examples/vite-example/spike-phase6-vite.mjs`
+in the background got killed by the test-running tool's own 10-minute cap
+partway through the `npm create vite` step (before `npm install`/`npm run
+dev` ever ran) — the process exiting 0 was just the trailing `tail`
+command, not proof the spike succeeded. The script itself is real and
+unchanged from what's described below; it has not actually been confirmed
+to complete yet. Needs a rerun with a shorter per-step timeout or a
+foreground run patient enough to see it through.
+
+Intended to prove (not yet actually proven — see correction above):
+`npm create vite@latest`, `npm install`, and `npm run dev` all execute
+completely unmodified inside the guest — this is the plan's central
+argument over a Node-lite/shim-based approach.
 
 **Not proven here** (needs a real browser, which this environment doesn't
 have): the actual iframe live-preview with Vite's HMR websocket tunneled
