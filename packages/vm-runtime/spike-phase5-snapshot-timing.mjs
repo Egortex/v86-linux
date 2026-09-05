@@ -11,7 +11,7 @@ const biosDir = path.join(__dirname, "..", "..", "examples", "minimal", ".assets
 const vmImageDir = path.join(__dirname, "..", "vm-image");
 const wasmPath = fileURLToPath(new URL("./node_modules/v86/build/v86.wasm", import.meta.url));
 
-const PROMPT = /[\w.-]+:~#\s*$/;
+const PROMPT = /:~\S*#\s*$/;
 const stripAnsi = (s) => s.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "");
 
 const baseConfig = {
