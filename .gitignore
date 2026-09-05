@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.pnpm-store/
+*.log
+.DS_Store
+packages/vm-image/dist/*.img
+packages/vm-image/dist/*.bin
+packages/vm-image/work/
+**/.assets/
+e2e/test-results/
+e2e/playwright-report/

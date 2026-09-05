@@ -1,0 +1,12 @@
+{
+  "name": "@v86-linux/vm-image",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "spike:phase1": "node spike-phase1-boot.mjs"
+  },
+  "dependencies": {
+    "v86": "^0.5.458"
+  }
+}
