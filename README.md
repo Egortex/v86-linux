@@ -44,19 +44,29 @@ lease to match. Validated end-to-end. See `packages/preview-bridge/README.md`.
 
 ## Phase 6: what's proven vs what remains
 
-**Correction:** the first attempt to run `examples/vite-example/spike-phase6-vite.mjs`
-in the background got killed by the test-running tool's own 10-minute cap
-partway through the `npm create vite` step (before `npm install`/`npm run
-dev` ever ran) — the process exiting 0 was just the trailing `tail`
-command, not proof the spike succeeded. The script itself is real and
-unchanged from what's described below; it has not actually been confirmed
-to complete yet. Needs a rerun with a shorter per-step timeout or a
-foreground run patient enough to see it through.
+**Real, load-bearing finding (not a tooling artifact this time):** Vite's
+dev server does not start on v86's guest at all. Root cause confirmed
+independently on real hardware: v86 only ever emulates 32-bit x86
+(permanent — v86 itself doesn't support 64-bit guests), and modern Rollup
+(which Vite's dev server depends on) ships native binaries for 64-bit and
+non-x86 targets only — no `ia32` build exists. Rollup has an official WASM
+fallback (`@rollup/wasm-node`) for exactly this, and the standard
+`npm overrides` fix for it was verified to work correctly on real hardware
+in under 10 seconds — but the same fix did not take effect inside the
+guest (Alpine's packaged npm is `10.9.1`, two majors behind; the likely
+fix, upgrading npm in the guest first, was started but not completed in
+this session — see `examples/vite-example/HMR-LIVE-EDIT.md` for the full
+trail and untried next steps). `npm create vite`, `npm install` itself, and
+a plain Node http server all separately proven to work fine on this guest
+(see Phases 2-5) — this is specifically Vite/Rollup's native-binary
+compatibility on a 32-bit-only emulator, not a general npm/Vite failure.
 
-Intended to prove (not yet actually proven — see correction above):
-`npm create vite@latest`, `npm install`, and `npm run dev` all execute
-completely unmodified inside the guest — this is the plan's central
-argument over a Node-lite/shim-based approach.
+`examples/vite-example/spike-phase6-vite.mjs` (the original scaffold-only
+check) also has not been confirmed to complete — an earlier background run
+was killed by the test-running tool's own 10-minute cap partway through,
+and this session's later, deeper investigation (see HMR-LIVE-EDIT.md)
+found the real blocker described above, which would affect this script
+too.
 
 **Not proven here** (needs a real browser, which this environment doesn't
 have): the actual iframe live-preview with Vite's HMR websocket tunneled

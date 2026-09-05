@@ -127,11 +127,32 @@ console.log("\n[stage1] wrote package.json/index.html/main.js via 9p fs-bridge\n
 await sendAndWaitForPrompt("cd /root/my-app && npm install --no-audit --no-fund", 900_000);
 console.log("\n[stage1] npm install done\n");
 
+// Starting the dev server itself takes real wall-clock time under CPU
+// emulation (node startup + vite's own module graph + esbuild init) — a
+// flat 3s wait wasn't enough: a follow-up diagnostic (diag-check-vite-log.mjs,
+// booted straight from this run's own snapshot) found /tmp/vite.log didn't
+// exist at all at the point save_state() was called, meaning the dev
+// server process hadn't even opened its log file yet. Poll instead of
+// guessing a fixed delay.
 await sendAndWaitForPrompt(
-    "cd /root/my-app && (npm run dev -- --host 0.0.0.0 --port 5175 > /tmp/vite.log 2>&1 &); sleep 3; cat /tmp/vite.log",
-    30_000,
+    "cd /root/my-app && (npm run dev -- --host 0.0.0.0 --port 5175 > /tmp/vite.log 2>&1 &)",
+    15_000,
 );
-console.log("\n[stage1] vite dev server started\n");
+console.log("\n[stage1] dev server launched in background, polling for its banner...\n");
+
+let viteReady = false;
+for (let attempt = 0; attempt < 20 && !viteReady; attempt++) {
+    const tail = await sendAndWaitForPrompt("cat /tmp/vite.log 2>&1", 15_000);
+    if (/Local:|ready in|VITE v/i.test(tail)) {
+        viteReady = true;
+        console.log(`\n[stage1] vite dev server banner seen after ${attempt + 1} poll(s)\n`);
+    } else {
+        await new Promise((resolve) => setTimeout(resolve, 3_000));
+    }
+}
+if (!viteReady) {
+    throw new Error("vite dev server never printed its ready banner after 20 polls (~60s+)");
+}
 
 console.log("[stage1] saving state to disk...");
 const snapshot = await emulator.save_state();
