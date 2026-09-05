@@ -1,0 +1,17 @@
+{
+  "name": "@v86-linux/preview-bridge",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "main": "src/port-forward.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "spike:phase4": "node spike-phase4-preview.mjs"
+  },
+  "dependencies": {
+    "v86": "^0.5.458"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}
