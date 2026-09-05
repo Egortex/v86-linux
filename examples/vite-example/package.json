@@ -1,0 +1,12 @@
+{
+  "name": "v86-linux-example-vite",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "spike:phase6": "node spike-phase6-vite.mjs"
+  },
+  "dependencies": {
+    "v86": "^0.5.458"
+  }
+}
