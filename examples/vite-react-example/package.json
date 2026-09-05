@@ -1,0 +1,12 @@
+{
+  "name": "v86-linux-example-vite-react",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "spike": "node spike-vite-react.mjs"
+  },
+  "dependencies": {
+    "v86": "^0.5.458"
+  }
+}

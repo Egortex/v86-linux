@@ -1,0 +1,18 @@
+{
+  "name": "@v86-linux/e2e",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "dependencies": {
+    "@v86-linux/runtime": "workspace:*",
+    "@v86-linux/vm-runtime": "workspace:*",
+    "v86": "^0.5.458"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.47.0",
+    "@types/node": "^20.0.0"
+  }
+}

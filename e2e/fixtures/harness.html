@@ -1,0 +1,178 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>v86-linux e2e harness</title>
+</head>
+<body>
+<!--
+  IMPORTANT — why this page is written the way it is:
+
+  packages/vm-runtime, packages/fs-bridge, packages/preview-bridge and
+  packages/runtime are all TypeScript, and there is currently no bundler
+  (webpack/vite/esbuild) configured anywhere in this repo that could compile
+  them down to something a browser can load directly from a <script> tag.
+  Rather than fake that (or half-wire a bundler just for this test package),
+  this harness loads v86 itself via its own prebuilt UMD/global bundle
+  (node_modules/v86/build/libv86.js, served at /v86/libv86.js by
+  ../fixtures/serve.mjs) and reimplements, inline and in plain JS, the same
+  handful of lines of logic that packages/vm-runtime/src/boot.ts and
+  packages/preview-bridge/src/port-forward.ts contain — prompt detection,
+  waitForSerial(), and the fetch-backend network_adapter.connect() dance.
+
+  This is a real gap: it means these tests exercise v86 the same way the TS
+  packages do, but they do NOT import or execute vm-runtime's/preview-bridge's
+  actual compiled code, so a bug introduced only in the TS wrapper (as
+  opposed to in how it calls v86) would not be caught here. Closing that gap
+  properly means adding a build step (e.g. tsup/esbuild) to those packages
+  and pointing this page at their output instead — tracked as follow-up, not
+  done in this pass.
+-->
+<pre id="log" style="white-space:pre-wrap;font-family:monospace;font-size:11px;"></pre>
+<script src="/v86/libv86.js"></script>
+<script>
+"use strict";
+
+const PROMPT_PATTERN = /[\w.-]+:~#\s*$/;
+const ANSI_PATTERN = /\x1b\[[0-9;]*[a-zA-Z]/g;
+const stripAnsi = (s) => s.replace(ANSI_PATTERN, "");
+
+const CMDLINE =
+    "rw root=host9p rootfstype=9p rootflags=trans=virtio,cache=loose " +
+    "modules=virtio_pci tsc=reliable init_on_free=on";
+
+const logEl = document.getElementById("log");
+function appendLog(chunk) {
+    logEl.textContent += chunk;
+    if (logEl.textContent.length > 200_000) {
+        logEl.textContent = logEl.textContent.slice(-100_000);
+    }
+}
+
+/**
+ * Mirrors packages/vm-runtime/src/boot.ts's bootVM(), by hand, against the
+ * global `V86` class loaded from libv86.js. `netDevice` mirrors
+ * boot.ts's `networkRelayUrl` passthrough (undefined = no network device,
+ * "fetch" = the preview-bridge backend used by preview-http.spec.ts).
+ */
+function bootVM({ netDevice } = {}) {
+    const options = {
+        wasm_path: "/v86/v86.wasm",
+        memory_size: 256 * 1024 * 1024,
+        vga_memory_size: 2 * 1024 * 1024,
+        screen: { container: null },
+        bios: { url: "/bios/seabios.bin" },
+        vga_bios: { url: "/bios/vgabios.bin" },
+        bzimage_initrd_from_filesystem: true,
+        cmdline: CMDLINE,
+        filesystem: {
+            baseurl: "/image/rootfs-flat",
+            basefs: "/image/fs.json",
+        },
+        autostart: true,
+    };
+    if (netDevice) {
+        options.net_device = { type: "virtio", relay_url: netDevice };
+    }
+
+    const emulator = new window.V86(options);
+
+    let serialLog = "";
+    let sawPrompt = false;
+    let resolveReady;
+    const ready = new Promise((resolve) => {
+        resolveReady = resolve;
+    });
+    const waiters = [];
+
+    emulator.add_listener("serial0-output-byte", (byte) => {
+        const ch = String.fromCharCode(byte);
+        serialLog += ch;
+        appendLog(ch);
+
+        if (!sawPrompt && PROMPT_PATTERN.test(stripAnsi(serialLog).slice(-200))) {
+            sawPrompt = true;
+            resolveReady();
+        }
+
+        for (let i = waiters.length - 1; i >= 0; i--) {
+            const tail = stripAnsi(serialLog).slice(-4096);
+            if (waiters[i].pattern.test(tail)) {
+                waiters[i].resolve(tail);
+                waiters.splice(i, 1);
+            }
+        }
+    });
+
+    return {
+        emulator,
+        ready,
+        getSerialLog: () => serialLog,
+        runCommand: (command) => emulator.serial0_send(`${command}\n`),
+        waitForSerial: (pattern, timeoutMs = 30_000) =>
+            new Promise((resolve, reject) => {
+                waiters.push({ pattern, resolve });
+                setTimeout(() => reject(new Error(`waitForSerial timed out: ${pattern}`)), timeoutMs);
+            }),
+    };
+}
+
+/**
+ * Mirrors packages/preview-bridge/src/port-forward.ts's
+ * fetchOverGuestPort()/refreshGuestNetworkForPreview(), against
+ * emulator.network_adapter (only present when netDevice: "fetch" was used
+ * to boot). See that file's module doc for why "fetch" can reach a guest's
+ * listening port from host JS, but can't do outbound HTTPS (so it is only
+ * ever used post-install, in "preview mode").
+ */
+function refreshGuestNetworkForPreview(emulator, interfaceName = "eth0", settleMs = 4000) {
+    emulator.serial0_send(
+        `ip link set ${interfaceName} down; ip link set ${interfaceName} up; ` +
+        `udhcpc -i ${interfaceName} -n -q -T 5 -t 3\n`,
+    );
+    return new Promise((resolve) => setTimeout(resolve, settleMs));
+}
+
+async function fetchOverGuestPort(emulator, port, requestPath = "/", timeoutMs = 15_000) {
+    const adapter = emulator.network_adapter;
+    if (!adapter || typeof adapter.connect !== "function") {
+        throw new Error("network_adapter.connect unavailable — boot with netDevice: 'fetch'");
+    }
+    const open = await Promise.race([
+        adapter.tcp_probe(port),
+        new Promise((resolve) => setTimeout(() => resolve("__timeout__"), timeoutMs)),
+    ]);
+    if (open === "__timeout__" || !open) {
+        throw new Error(`tcp_probe(${port}) did not report an open port`);
+    }
+
+    const connection = adapter.connect(port);
+    let response = new Uint8Array(0);
+    return new Promise((resolve) => {
+        const finish = () => resolve(new TextDecoder().decode(response));
+        connection.on("connect", () => {
+            connection.write(new TextEncoder().encode(`GET ${requestPath} HTTP/1.0\r\n\r\n`));
+        });
+        connection.on("data", (data) => {
+            const chunk = data instanceof Uint8Array ? data : new Uint8Array(data);
+            const merged = new Uint8Array(response.length + chunk.length);
+            merged.set(response);
+            merged.set(chunk, response.length);
+            response = merged;
+        });
+        connection.on("close", finish);
+        connection.on("shutdown", finish);
+        setTimeout(finish, timeoutMs);
+    });
+}
+
+// Exposed for Playwright's page.evaluate()/page.exposeFunction() calls.
+window.__harness = {
+    bootVM,
+    refreshGuestNetworkForPreview,
+    fetchOverGuestPort,
+    getLogText: () => logEl.textContent,
+};
+</script>
+</body>
+</html>

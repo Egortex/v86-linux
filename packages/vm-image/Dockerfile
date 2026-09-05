@@ -8,7 +8,10 @@
 FROM docker.io/i386/alpine:3.21.0
 
 ENV KERNEL=virt
-ENV ADDPKGS="nodejs npm"
+# build-base + python3: toolchain needed for node-gyp/native module builds
+# (see examples/native-module-example) — not needed for Phases 0-3, added
+# ahead of that example's rebuild.
+ENV ADDPKGS="nodejs npm build-base python3"
 
 RUN apk add openrc alpine-base agetty alpine-conf linux-$KERNEL linux-firmware-none $ADDPKGS
 
