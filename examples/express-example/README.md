@@ -1,8 +1,24 @@
 # examples/express-example
 
-A real Express.js app, unmodified, exercising the full install-mode ->
-preview-mode pipeline (Phases 3+4 combined) with a concrete real-world web
-framework instead of a bare `http.createServer`.
+**Status: verified end-to-end, real run.** A real Express.js app,
+unmodified, exercising the full install-mode -> preview-mode pipeline
+(Phases 3+4 combined) with a concrete real-world web framework instead of a
+bare `http.createServer`.
+
+Confirmed: `npm install express` (68 packages, ~2min over the shared public
+relay), a real `server.js` written via the 9p fs-bridge, the server
+detected ready after ~10s of polling (a fixed short sleep isn't reliable —
+Node startup itself takes real wall-clock time under CPU emulation), a
+133MB snapshot saved and restored in a fresh `fetch`-backend instance, and
+a genuine HTTP response received from host JS:
+
+```
+HTTP/1.1 200 OK
+X-Powered-By: Express
+Content-Type: text/html; charset=utf-8
+...
+hello from real Express inside v86-linux
+```
 
 ```sh
 node spike-express.mjs

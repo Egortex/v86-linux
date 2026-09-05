@@ -29,7 +29,7 @@ const SERVER_JS = `
 const express = require('express');
 const app = express();
 app.get('/', (req, res) => res.send('hello from real Express inside v86-linux'));
-app.listen(3000, '0.0.0.0');
+app.listen(3000, '0.0.0.0', () => console.log('EXPRESS_READY'));
 `;
 
 const baseConfig = {
@@ -90,8 +90,24 @@ console.log("\n[stage A] express installed\n");
 await stageA.create_file("root/express-app/server.js", new TextEncoder().encode(SERVER_JS));
 console.log("\n[stage A] server.js written via 9p fs-bridge\n");
 
-await sendAndWaitForPrompt(stageA, "cd /root/express-app && (node server.js > /tmp/express.log 2>&1 &); sleep 2; cat /tmp/express.log");
-console.log("\n[stage A] express server started\n");
+// A fixed sleep isn't reliable: Node startup itself takes real wall-clock
+// time under CPU emulation (confirmed separately with Vite's dev server —
+// /tmp/vite.log didn't even exist yet after a 3s sleep). Poll instead.
+await sendAndWaitForPrompt(stageA, "cd /root/express-app && (node server.js > /tmp/express.log 2>&1 &)", 15_000);
+let serverReady = false;
+for (let attempt = 0; attempt < 20 && !serverReady; attempt++) {
+    const tail = await sendAndWaitForPrompt(stageA, "cat /tmp/express.log 2>&1", 15_000);
+    if (tail.includes("EXPRESS_READY")) {
+        serverReady = true;
+        console.log(`\n[stage A] express server ready after ${attempt + 1} poll(s)\n`);
+    } else {
+        await new Promise((r) => setTimeout(r, 2_000));
+    }
+}
+if (!serverReady) {
+    console.error("\n[stage A] FAILURE: express server never printed EXPRESS_READY\n");
+    process.exit(1);
+}
 
 console.log("[stage A] saving state...");
 const snapshot = await stageA.save_state();

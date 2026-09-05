@@ -128,11 +128,15 @@ See each package's own README for details and how to reproduce its spike:
 - `packages/preview-bridge/` — the Phase 4 port-forward solution
 - `packages/runtime/` — public boot()/install()/run()/restart()/writeFile() API
 - `examples/minimal/` — Phase 0 spike
-- `examples/vite-example/` — Phase 6 spike (vanilla Vite)
-- `examples/vite-react-example/` — real Vite+React, reached over the preview
-  bridge (not just log-checked); code written, run pending (see below)
-- `examples/express-example/` — real Express app, full install-mode ->
-  preview-mode pipeline with a real framework; code written, run pending
+- `examples/vite-example/` — Phase 6 spike; Vite's dev server does not
+  currently start on this guest (real Rollup/32-bit incompatibility, see
+  `HMR-LIVE-EDIT.md` in that directory) — the one confirmed-blocked example
+  in this repo, not a gap in effort
+- `examples/vite-react-example/` — same Rollup/32-bit blocker applies (not
+  yet re-run since diagnosing it in vite-example)
+- `examples/express-example/` — **verified end-to-end, real run**: real
+  `npm install express`, full install-mode -> preview-mode pipeline, real
+  HTTP response received (see that directory's README)
 - `examples/native-module-example/` — not yet built (see above)
 - `e2e/` — Playwright test package written (boot + preview-http specs); not
   yet run in this environment (needs a real browser; see `e2e/README.md`)
