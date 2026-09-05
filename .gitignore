@@ -10,3 +10,5 @@ packages/vm-image/work/
 **/.assets/
 e2e/test-results/
 e2e/playwright-report/
+examples/vite-example/.hmr-snapshot.bin
+examples/vite-example/.hmr-meta.json

@@ -1,0 +1,120 @@
+// HMR/live-edit test, stage 1: boot -> DHCP -> real Vite scaffold -> real
+// npm install -> start the dev server -> save_state() to disk.
+//
+// Split into two stages (this file + spike-hmr-stage2-live-edit.mjs) so
+// each fits comfortably under a single tool invocation's time budget — the
+// first attempt at a monolithic Phase 6 spike got killed mid-scaffold by
+// the test-running tool's own timeout before npm install even started.
+// This also happens to demonstrate persisting a snapshot to disk and
+// resuming it in a completely separate process later, which is closer to
+// real product behavior than an in-memory handoff.
+import { V86 } from "v86";
+import { readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const biosDir = path.join(__dirname, "..", "minimal", ".assets");
+const vmImageDir = path.join(__dirname, "..", "..", "packages", "vm-image");
+const wasmPath = fileURLToPath(new URL("./node_modules/v86/build/v86.wasm", import.meta.url));
+const snapshotPath = path.join(__dirname, ".hmr-snapshot.bin");
+
+const PROMPT = /[\w.-]+:~#\s*$/;
+const stripAnsi = (s) => s.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "");
+
+const emulator = new V86({
+    wasm_path: wasmPath,
+    memory_size: 512 * 1024 * 1024,
+    vga_memory_size: 2 * 1024 * 1024,
+    screen: { container: null },
+    bios: { buffer: readFileSync(path.join(biosDir, "seabios.bin")).buffer },
+    vga_bios: { buffer: readFileSync(path.join(biosDir, "vgabios.bin")).buffer },
+    bzimage_initrd_from_filesystem: true,
+    cmdline: "rw root=host9p rootfstype=9p rootflags=trans=virtio,cache=loose " +
+        "modules=virtio_pci tsc=reliable init_on_free=on",
+    filesystem: {
+        baseurl: path.join(vmImageDir, "dist", "rootfs-flat"),
+        basefs: path.join(vmImageDir, "dist", "fs.json"),
+    },
+    net_device: { type: "virtio", relay_url: "wss://relay.widgetry.org/" },
+    autostart: true,
+});
+
+function waitFor(predicate, timeoutMs) {
+    return new Promise((resolve, reject) => {
+        let buf = "";
+        const timer = setTimeout(() => reject(new Error("timed out waiting for condition")), timeoutMs);
+        emulator.add_listener("serial0-output-byte", function listener(byte) {
+            buf += String.fromCharCode(byte);
+            process.stdout.write(String.fromCharCode(byte));
+            const tail = stripAnsi(buf);
+            if (predicate(tail)) {
+                emulator.remove_listener("serial0-output-byte", listener);
+                clearTimeout(timer);
+                resolve(tail);
+            }
+        });
+    });
+}
+
+function sendAndWaitForPrompt(command, timeoutMs) {
+    const marker = `__DONE_${Date.now()}_${Math.random().toString(36).slice(2)}__`;
+    const t0 = performance.now();
+    emulator.serial0_send(`${command}; echo ${marker}\n`);
+    return waitFor((tail) => tail.includes(marker) && PROMPT.test(tail.slice(-40)), timeoutMs).then((tail) => {
+        console.log(`\n[timing] step took ${(performance.now() - t0).toFixed(0)}ms\n`);
+        return tail;
+    });
+}
+
+await waitFor((tail) => PROMPT.test(tail.slice(-40)), 60_000);
+console.log("\n[stage1] boot prompt reached\n");
+
+await sendAndWaitForPrompt("ip link set eth0 up 2>&1; udhcpc -i eth0 -n -q -T 5 -t 3", 30_000);
+console.log("\n[stage1] DHCP done\n");
+
+await sendAndWaitForPrompt(
+    "cd /root && npm_config_yes=true npm create vite@latest my-app -- --template vanilla 2>&1 | tail -20",
+    180_000,
+);
+console.log("\n[stage1] vite scaffold done\n");
+
+await sendAndWaitForPrompt(
+    "cd /root/my-app && npm install --no-audit --no-fund 2>&1 | tail -20",
+    300_000,
+);
+console.log("\n[stage1] npm install done\n");
+
+// Find the scaffold's actual top-level .js file (create-vite's exact
+// output has changed across versions — e.g. counter.js vs main.js) so
+// stage 2 knows which real source file to edit for the live-edit test.
+const marker = `__FILE_${Date.now()}__`;
+emulator.serial0_send(
+    `find /root/my-app -maxdepth 1 -name '*.js' | head -1; echo ${marker}\n`,
+);
+const findTail = await waitFor(
+    (tail) => tail.includes(marker) && PROMPT.test(tail.slice(-40)),
+    15_000,
+);
+const jsFileMatch = findTail.match(/(\/root\/my-app\/\S+\.js)/);
+const editableFile = jsFileMatch ? jsFileMatch[1] : "/root/my-app/main.js";
+console.log(`\n[stage1] editable source file for stage 2: ${editableFile}\n`);
+
+await sendAndWaitForPrompt(
+    "cd /root/my-app && (npm run dev -- --host 0.0.0.0 --port 5175 > /tmp/vite.log 2>&1 &); sleep 3; cat /tmp/vite.log",
+    30_000,
+);
+console.log("\n[stage1] vite dev server started\n");
+
+console.log("[stage1] saving state to disk...");
+const snapshot = await emulator.save_state();
+writeFileSync(snapshotPath, Buffer.from(snapshot));
+console.log(`[stage1] snapshot written: ${snapshotPath} (${snapshot.byteLength} bytes)`);
+
+const metaPath = path.join(__dirname, ".hmr-meta.json");
+writeFileSync(metaPath, JSON.stringify({ editableFile }, null, 2));
+console.log(`[stage1] meta written: ${metaPath}`);
+
+await emulator.destroy();
+console.log("\n[stage1] SUCCESS — run spike-hmr-stage2-live-edit.mjs next\n");
+process.exit(0);
