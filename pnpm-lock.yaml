@@ -50,6 +50,28 @@ importers:
         specifier: ^5.6.3
         version: 5.9.3
 
+  packages/runtime:
+    dependencies:
+      '@v86-linux/fs-bridge':
+        specifier: workspace:*
+        version: link:../fs-bridge
+      '@v86-linux/preview-bridge':
+        specifier: workspace:*
+        version: link:../preview-bridge
+      '@v86-linux/vm-runtime':
+        specifier: workspace:*
+        version: link:../vm-runtime
+      v86:
+        specifier: ^0.5.458
+        version: 0.5.458
+    devDependencies:
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.4
+        version: 2.1.9
+
   packages/vm-image:
     dependencies:
       v86:

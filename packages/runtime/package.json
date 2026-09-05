@@ -1,0 +1,20 @@
+{
+  "name": "@v86-linux/runtime",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "src/runtime.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "v86": "^0.5.458",
+    "@v86-linux/vm-runtime": "workspace:*",
+    "@v86-linux/fs-bridge": "workspace:*",
+    "@v86-linux/preview-bridge": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.4"
+  }
+}
