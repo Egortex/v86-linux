@@ -37,7 +37,7 @@ console.log(`[stage2] loaded snapshot: ${snapshot.byteLength} bytes`);
 
 const emulator = new V86({
     wasm_path: wasmPath,
-    memory_size: 512 * 1024 * 1024,
+    memory_size: 2 * 1024 * 1024 * 1024, // must match stage 1's memory_size for restore_state() to work
     vga_memory_size: 2 * 1024 * 1024,
     screen: { container: null },
     bios: { buffer: readFileSync(path.join(biosDir, "seabios.bin")).buffer },

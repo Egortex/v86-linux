@@ -24,7 +24,7 @@ const stripAnsi = (s) => s.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "");
 
 const emulator = new V86({
     wasm_path: wasmPath,
-    memory_size: 512 * 1024 * 1024,
+    memory_size: 2 * 1024 * 1024 * 1024,
     vga_memory_size: 2 * 1024 * 1024,
     screen: { container: null },
     bios: { buffer: readFileSync(path.join(biosDir, "seabios.bin")).buffer },
@@ -73,15 +73,32 @@ console.log("\n[stage1] boot prompt reached\n");
 await sendAndWaitForPrompt("ip link set eth0 up 2>&1; udhcpc -i eth0 -n -q -T 5 -t 3", 30_000);
 console.log("\n[stage1] DHCP done\n");
 
+// `vite`'s own npm registry metadata document is large (thousands of
+// published versions) — diagnosed separately (diag-npm-create.mjs): a bare
+// `npm view vite version` alone can take several minutes to fetch+parse
+// through the emulated NIC + shared wsproxy relay, well before any actual
+// package content transfers. `npm create vite` needs to resolve exactly
+// that metadata, so it inherits the same multi-minute cost. Budget
+// generously rather than assume a hang.
+// create-vite constructs a readline.Interface tied to stdout regardless of
+// --template being passed (observed directly: it crashes inside
+// Interface.prompt()'s _refreshLine -> cursorTo with "Received NaN"). Root
+// cause: the guest's serial console is a real pty (isTTY true) but doesn't
+// report terminal dimensions the way a real interactive terminal would, so
+// Node's readline internals compute NaN for the cursor column. Setting
+// COLUMNS/LINES explicitly fixes this — a real terminal-size problem, not a
+// stale-file/overwrite-prompt issue (checked: vm-image's 9p writes don't
+// persist across VM instances, so there's no leftover my-app to explain an
+// overwrite prompt either).
 await sendAndWaitForPrompt(
-    "cd /root && npm_config_yes=true npm create vite@latest my-app -- --template vanilla 2>&1 | tail -20",
-    180_000,
+    "cd /root && COLUMNS=80 LINES=24 npm_config_yes=true npm create vite@latest my-app -- --template vanilla",
+    900_000,
 );
 console.log("\n[stage1] vite scaffold done\n");
 
 await sendAndWaitForPrompt(
-    "cd /root/my-app && npm install --no-audit --no-fund 2>&1 | tail -20",
-    300_000,
+    "cd /root/my-app && npm install --no-audit --no-fund",
+    900_000,
 );
 console.log("\n[stage1] npm install done\n");
 

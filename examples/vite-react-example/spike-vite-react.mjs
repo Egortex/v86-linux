@@ -25,7 +25,7 @@ const stripAnsi = (s) => s.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "");
 
 const baseConfig = {
     wasm_path: wasmPath,
-    memory_size: 512 * 1024 * 1024,
+    memory_size: 1024 * 1024 * 1024,
     vga_memory_size: 2 * 1024 * 1024,
     screen: { container: null },
     bios: { buffer: readFileSync(path.join(biosDir, "seabios.bin")).buffer },
@@ -77,16 +77,21 @@ const stageA = new V86({
 await waitFor(stageA, (tail) => PROMPT.test(tail.slice(-40)));
 await sendAndWaitForPrompt(stageA, "ip link set eth0 up 2>&1; udhcpc -i eth0 -n -q -T 5 -t 3");
 
+// `vite`'s own npm registry metadata is large (thousands of published
+// versions) — a bare `npm view vite version` can take several minutes to
+// fetch+parse through the emulated NIC + shared wsproxy relay before any
+// package content even transfers (diagnosed in vite-example's
+// diag-npm-create.mjs). Budget generously.
 await sendAndWaitForPrompt(
     stageA,
-    "cd /root && npm_config_yes=true npm create vite@latest my-react-app -- --template react 2>&1 | tail -20",
-    120_000,
+    "cd /root && COLUMNS=80 LINES=24 npm_config_yes=true npm create vite@latest my-react-app -- --template react 2>&1 | tail -20",
+    600_000,
 );
 
 await sendAndWaitForPrompt(
     stageA,
     "cd /root/my-react-app && npm install --no-audit --no-fund 2>&1 | tail -20",
-    300_000,
+    600_000,
 );
 
 await sendAndWaitForPrompt(

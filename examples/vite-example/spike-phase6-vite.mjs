@@ -20,7 +20,7 @@ const stripAnsi = (s) => s.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "");
 
 const emulator = new V86({
     wasm_path: wasmPath,
-    memory_size: 512 * 1024 * 1024,
+    memory_size: 1024 * 1024 * 1024,
     vga_memory_size: 2 * 1024 * 1024,
     screen: { container: null },
     bios: { buffer: readFileSync(path.join(biosDir, "seabios.bin")).buffer },
@@ -40,7 +40,7 @@ const steps = [
     { send: "ip link set eth0 up 2>&1; udhcpc -i eth0 -n -q -T 5 -t 3; echo STEP_DONE", label: "dhcp" },
     {
         send:
-            "cd /root && npm_config_yes=true npm create vite@latest my-app -- --template vanilla 2>&1 | tail -20; echo STEP_DONE",
+            "cd /root && COLUMNS=80 LINES=24 npm_config_yes=true npm create vite@latest my-app -- --template vanilla 2>&1 | tail -20; echo STEP_DONE",
         label: "scaffold",
     },
     {
